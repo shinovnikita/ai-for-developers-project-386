@@ -1,0 +1,31 @@
+{
+  "name": "call-calendar",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server/index.ts",
+    "dev": "vite frontend --host 127.0.0.1 --strictPort",
+    "build": "tsc -b frontend && vite build frontend",
+    "preview": "vite preview frontend --host 127.0.0.1 --strictPort",
+    "lint": "oxlint --deny-warnings --react-plugin --vitest-plugin server frontend",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit && tsc -b frontend"
+  },
+  "dependencies": {
+    "@mantine/core": "9.8.1",
+    "@mantine/hooks": "9.8.1",
+    "fastify": "5.12.8",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.3.0",
+    "oxlint": "1.93.0",
+    "typescript": "6.0.3",
+    "vite": "8.3.8",
+    "vitest": "5.1.0"
+  }
+}

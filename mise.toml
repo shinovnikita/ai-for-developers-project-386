@@ -1,0 +1,6 @@
+[tools]
+node = "24.22.3"
+
+[tasks.check]
+description = "Run lint, type checking, and tests"
+run = ["npm run lint", "npm run typecheck", "npm test"]
