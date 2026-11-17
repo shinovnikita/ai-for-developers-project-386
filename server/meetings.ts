@@ -3,6 +3,7 @@ import type { DatabaseSync, SQLOutputValue } from 'node:sqlite';
 import type { FastifyInstance } from 'fastify';
 import type { CreateMeetingInput, Meeting, MeetingConfirmation, Slot, UpcomingMeetings } from '../api/generated/sdk/types.gen.ts';
 import { calendarTimeZone } from '../shared/calendar-time.ts';
+import type { ApiRoute } from './api-route.ts';
 import { getSlot, overlaps, utcTimestamp, type WeeklySchedule } from './availability.ts';
 import { meetingTypeNotFound, type createMeetingTypeCatalog } from './meeting-types.ts';
 import { handleInvalidRequest, validationError } from './validation-error.ts';
@@ -171,7 +172,7 @@ export function createMeetingStore(
 }
 
 export function registerMeetingRoutes(app: FastifyInstance, meetings: ReturnType<typeof createMeetingStore>) {
-  app.post<{ Body: MeetingRequest }>('/api/meetings', {
+  app.post<Omit<ApiRoute<'createMeeting'>, 'Body'> & { Body: MeetingRequest }>('/api/meetings', {
     errorHandler: handleInvalidRequest,
   }, async (request, reply) => {
     if (!hasBookingShape(request.body)) {
@@ -182,7 +183,7 @@ export function registerMeetingRoutes(app: FastifyInstance, meetings: ReturnType
     return reply.code(status).send(body);
   });
 
-  app.get('/api/meetings/upcoming', async (_request, reply) => {
-    return reply.header('Cache-Control', 'no-store').send(meetings.listUpcoming());
+  app.get<ApiRoute<'listUpcomingMeetings'>>('/api/meetings/upcoming', async (_request, reply) => {
+    return reply.header('Cache-Control', 'no-store').code(200).send(meetings.listUpcoming());
   });
 }

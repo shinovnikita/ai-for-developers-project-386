@@ -1,6 +1,7 @@
 import Fastify, { type FastifyServerOptions } from 'fastify';
 import { DatabaseSync } from 'node:sqlite';
 import type { MeetingType } from '../api/generated/sdk/types.gen.ts';
+import type { ApiRoute } from './api-route.ts';
 import { getAvailability, type WeeklySchedule } from './availability.ts';
 import { createMeetingTypeCatalog, meetingTypeNotFound, registerMeetingTypeRoutes } from './meeting-types.ts';
 import { createMeetingStore, registerMeetingRoutes } from './meetings.ts';
@@ -25,7 +26,7 @@ export function buildApp(
   app.get('/health', async () => ({ status: 'ok' }));
   registerMeetingTypeRoutes(app, catalog);
   registerMeetingRoutes(app, meetings);
-  app.get<{ Params: { meetingTypeId: string } }>(
+  app.get<ApiRoute<'getMeetingTypeAvailability'>>(
     '/api/meeting-types/:meetingTypeId/availability',
     async (request, reply) => {
       const meetingType = catalog.find(request.params.meetingTypeId);
@@ -34,7 +35,8 @@ export function buildApp(
       }
 
       const currentTime = now();
-      return getAvailability(meetingType.durationMinutes, currentTime, schedule, meetings.listActiveSlots(currentTime));
+      const availability = getAvailability(meetingType.durationMinutes, currentTime, schedule, meetings.listActiveSlots(currentTime));
+      return reply.code(200).send(availability);
     },
   );
 

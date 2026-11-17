@@ -83,6 +83,17 @@ test('две параллельные записи на пересекающие
   ])).toEqual(singleBooking);
 });
 
+test('две параллельные записи на частично пересекающиеся слоты типов разной длительности сохраняют только одну встречу', async ({ onTestFinished }) => {
+  const calendar = await startCalendar(onTestFinished);
+  const consultation = await calendar.createType('Консультация', 60);
+  const interview = await calendar.createType('Собеседование', 30);
+
+  expect(await bookingOutcome(calendar, [
+    book(calendar, consultation.id, '2026-11-18T07:00:00Z', 'Ян'),
+    book(calendar, interview.id, '2026-11-18T07:45:00Z', 'Лена'),
+  ])).toEqual(singleBooking);
+});
+
 test('запись исключает пересечения из доступности всех типов и разрешает начало сразу после встречи', async ({ onTestFinished }) => {
   const calendar = await startCalendar(onTestFinished);
   const introduction = await calendar.createType('Знакомство', 17);

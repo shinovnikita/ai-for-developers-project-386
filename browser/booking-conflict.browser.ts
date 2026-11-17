@@ -35,7 +35,12 @@ test('гость выбирает другое время после конфл�
   expect(reservation.status()).toBe(201);
 
   const submit = page.getByRole('button', { name: 'Подтвердить запись' });
+  const conflictResponse = page.waitForResponse((response) =>
+    response.url().endsWith('/api/meetings') && response.request().method() === 'POST');
   await submit.click();
+  const conflict = await conflictResponse;
+  expect(conflict.status()).toBe(409);
+  expect(await conflict.json()).toMatchObject({ code: 'SLOT_TAKEN' });
   await expect(page.getByRole('alert')).toHaveText(/Это время уже занято/);
   await expect(originalSlot).toHaveCount(0);
   await expect(slots.getByRole('button', { pressed: true })).toHaveCount(0);

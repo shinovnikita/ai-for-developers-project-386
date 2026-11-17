@@ -28,7 +28,10 @@ test('после записи через главную владелец вид�
   await page.getByRole('button', { name: 'вт, 17 нояб.' }).click();
   await page.getByRole('button', { name: '10:00–10:30' }).click();
   await page.getByRole('textbox', { name: 'Имя' }).fill(guestName);
+  const bookingResponse = page.waitForResponse((response) =>
+    response.url().endsWith('/api/meetings') && response.request().method() === 'POST');
   await page.getByRole('button', { name: 'Подтвердить запись' }).click();
+  expect((await bookingResponse).status()).toBe(201);
 
   const confirmation = page.getByRole('region', { name: 'Подтверждение записи' });
   await expect(confirmation.getByRole('heading', { name: 'Встреча подтверждена' })).toBeVisible();

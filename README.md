@@ -17,7 +17,7 @@
 
 У приложения один заранее заданный владелец и один календарь для всех типов встреч. Частичное и полное пересечение записей запрещено, в том числе при одновременных запросах. Следующая встреча может начаться в момент окончания предыдущей. В проекте нет авторизации, личных кабинетов и интеграций с внешними календарями.
 
-Для API используем контракт TypeSpec. Из него генерируется OpenAPI, а из OpenAPI — клиентский SDK для фронтенда. Приложение должно собираться в Docker-образ и запускаться в контейнере.
+Для API используем контракт TypeSpec. Из него генерируется OpenAPI, а Hey API создаёт из OpenAPI клиентский SDK и типы маршрутов Fastify. Fastify регистрирует обработчики, которые проверяют входные данные и соблюдают правила бронирования. Приложение собирается в Docker-образ и запускается в контейнере.
 
 Референс Cal.com. [Создание типа встречи](https://cal.com/blog/event-types-guide-calcom) · [Запись гостя](https://cal.com/scheduling) · [Список встреч владельца](https://cal.com/blog/a-complete-walkthrough-of-cal-com-s-booking-dashboard-its-key-features)
 
@@ -88,7 +88,13 @@ CALENDAR_SCHEDULE='{"1":[{"startsAt":"10:00","endsAt":"17:00"}]}' mise exec -- n
 
 ## Проверки
 
-Из корня проекта запустите ту же команду, которую выполняет GitHub Actions при каждом push.
+Перед первым запуском установите Chromium для Playwright. На Linux добавьте `--with-deps`, чтобы установить системные зависимости, как в GitHub Actions.
+
+```bash
+mise exec -- npm exec -- playwright install chromium
+```
+
+Из корня проекта запустите `mise run check`. Эта команда генерирует OpenAPI и SDK, проверяет код и запускает Vitest и Playwright. GitHub Actions выполняет её при каждом push.
 
 ```bash
 mise run check
@@ -101,10 +107,9 @@ mise exec -- npm run lint
 mise exec -- npm test
 ```
 
-Браузерные тесты запускают локальные Fastify и Vite. Перед первым запуском установите Chromium для Playwright.
+Браузерные тесты запускают локальные Fastify и Vite. Их можно запустить отдельно.
 
 ```bash
-mise exec -- npm exec -- playwright install chromium
 mise exec -- npm run test:browser
 ```
 

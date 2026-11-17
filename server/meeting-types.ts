@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import type { FastifyInstance } from 'fastify';
 import type { CreateMeetingTypeInput, MeetingType, MeetingTypeNotFound } from '../api/generated/sdk/types.gen.ts';
+import type { ApiRoute } from './api-route.ts';
 import { handleInvalidRequest, validationError } from './validation-error.ts';
 
 export const meetingTypeNotFound = {
@@ -77,8 +78,10 @@ export function registerMeetingTypeRoutes(
   app: FastifyInstance,
   catalog: ReturnType<typeof createMeetingTypeCatalog>,
 ) {
-  app.get('/api/meeting-types', async () => catalog.list());
-  app.post<{ Body: MeetingTypeRequest | null | undefined }>('/api/meeting-types', {
+  app.get<ApiRoute<'listMeetingTypes'>>('/api/meeting-types', async (_request, reply) => {
+    return reply.code(200).send(catalog.list());
+  });
+  app.post<Omit<ApiRoute<'createMeetingType'>, 'Body'> & { Body: MeetingTypeRequest | null | undefined }>('/api/meeting-types', {
     errorHandler: handleInvalidRequest,
   }, async (request, reply) => {
     const { input, fieldErrors } = validateMeetingType(request.body);
