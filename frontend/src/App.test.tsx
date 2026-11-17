@@ -21,7 +21,7 @@ test('главная объясняет гостю, как записаться 
   expect(page).toContain('Здесь можно записаться на звонок к владельцу календаря без регистрации');
 });
 
-test('главная предупреждает об ожидании и ведёт на страницу записи', () => {
+test('главная ведёт в каталог типов встреч на странице записи', () => {
   const homepage = renderPage('/');
   const bookingLink = homepage.match(/<a\b[^>]* href="([^"]+)"[^>]*>(.*?)<\/a>/s);
 
@@ -29,10 +29,19 @@ test('главная предупреждает об ожидании и вед�
   const [, href, label] = bookingLink;
   expect(href).toBe('/booking');
   expect(label).toContain('Перейти к записи');
-  expect(homepage).toContain('Запись откроется позже');
 
   const bookingPage = renderPage(href);
 
   expect(bookingPage).toMatch(/<h1\b[^>]*>Страница записи<\/h1>/);
-  expect(bookingPage).toContain('Запись откроется позже');
+  expect(bookingPage).toContain('Загружаем типы встреч');
+});
+
+test('страница владельца открывается по прямой ссылке и показывает форму создания типа встречи', () => {
+  const ownerPage = renderPage('/owner');
+
+  expect(ownerPage).toMatch(/<h1\b[^>]*>Календарь владельца<\/h1>/);
+  expect(ownerPage).toContain('Название');
+  expect(ownerPage).toContain('Описание');
+  expect(ownerPage).toContain('Длительность в минутах');
+  expect(ownerPage).toContain('Создать тип встречи');
 });

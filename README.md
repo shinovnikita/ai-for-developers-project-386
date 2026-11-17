@@ -17,7 +17,7 @@
 
 У приложения один заранее заданный владелец и один календарь для всех типов встреч. Частичное и полное пересечение записей запрещено, в том числе при одновременных запросах. Следующая встреча может начаться в момент окончания предыдущей. В проекте нет авторизации, личных кабинетов и интеграций с внешними календарями.
 
-Для API используем контракт TypeSpec. Из него генерируется OpenAPI, а из OpenAPI — клиентский SDK для фронтенда. Приложение должно собираться в Docker-образ и запускаться в контейнере.
+Для API используем контракт TypeSpec. Из него генерируется OpenAPI, а Hey API создаёт из OpenAPI клиентский SDK и типы маршрутов Fastify. Fastify регистрирует обработчики, которые проверяют входные данные и соблюдают правила бронирования. Приложение собирается в Docker-образ и запускается в контейнере.
 
 Референс Cal.com. [Создание типа встречи](https://cal.com/blog/event-types-guide-calcom) · [Запись гостя](https://cal.com/scheduling) · [Список встреч владельца](https://cal.com/blog/a-complete-walkthrough-of-cal-com-s-booking-dashboard-its-key-features)
 
@@ -35,6 +35,8 @@ git clone https://github.com/shinovnikita/ai-for-developers-project-386.git
 cd ai-for-developers-project-386
 mise install
 mise exec -- npm ci
+mise exec -- npm run generate:openapi
+mise exec -- npm run generate:sdk
 ```
 
 ## Использование
@@ -59,6 +61,14 @@ mise exec -- npm run dev
 
 Страница откроется по адресу [127.0.0.1:5173](http://127.0.0.1:5173/).
 
+Чтобы создать тип встречи, откройте [страницу владельца](http://127.0.0.1:5173/owner). Сервер сохраняет типы встреч в файле `calendar.sqlite` в рабочем каталоге. Путь к файлу можно задать переменной `CALENDAR_DB_PATH`.
+
+Чтобы открыть каталог с демонстрационным типом встречи, запустите `mise exec -- npm run demo:catalog` вместо `npm start` и перейдите на [страницу записи](http://127.0.0.1:5173/booking). Ответ каталога можно проверить напрямую.
+
+```bash
+curl --noproxy 127.0.0.1 --fail-with-body -i http://127.0.0.1:3000/api/meeting-types
+```
+
 Для сборки и локального предпросмотра собранной страницы выполните следующие команды.
 
 ```bash
@@ -68,9 +78,23 @@ mise exec -- npm run preview
 
 Сборка сохраняется в `frontend/dist`. Предпросмотр доступен по адресу [127.0.0.1:4173](http://127.0.0.1:4173/).
 
+### Рабочее расписание
+
+По умолчанию запись доступна по будням с 09:00 до 18:00 по часовому поясу `Europe/Moscow`. Чтобы задать другое расписание, передайте переменную окружения `CALENDAR_SCHEDULE` с JSON-объектом. Ключи от `0` (воскресенье) до `6` (суббота) соответствуют дням недели. Для каждого рабочего дня укажите один или несколько интервалов в формате `ЧЧ:ММ`. Окончание `24:00` обозначает границу дня. Пустой объект `{}` отключает доступность.
+
+```bash
+CALENDAR_SCHEDULE='{"1":[{"startsAt":"10:00","endsAt":"17:00"}]}' mise exec -- npm start
+```
+
 ## Проверки
 
-Из корня проекта запустите ту же команду, которую выполняет GitHub Actions при каждом push.
+Перед первым запуском установите Chromium для Playwright. На Linux добавьте `--with-deps`, чтобы установить системные зависимости, как в GitHub Actions.
+
+```bash
+mise exec -- npm exec -- playwright install chromium
+```
+
+Из корня проекта запустите `mise run check`. Эта команда генерирует OpenAPI и SDK, проверяет код и запускает Vitest и Playwright. GitHub Actions выполняет её при каждом push.
 
 ```bash
 mise run check
@@ -83,6 +107,22 @@ mise exec -- npm run lint
 mise exec -- npm test
 ```
 
+Браузерные тесты запускают локальные Fastify и Vite. Их можно запустить отдельно.
+
+```bash
+mise exec -- npm run test:browser
+```
+
+### Проверка Docker-образа
+
+Из корня проекта выполните команду, которую запускает отдельная проверка CI. Для неё нужны запущенный Docker, `curl` и `jq`.
+
+```bash
+bash scripts/docker-smoke.sh
+```
+
+Команда собирает образ со сгенерированным SDK и фронтендом, запускает контейнер и проверяет по HTTP `/health`, `/booking` и `/owner`. После проверки контейнер удаляется.
+
 ---
 
 <details>
@@ -91,6 +131,19 @@ mise exec -- npm test
 Тесты запускаются на каждый коммит. За запуск отвечает файл `.github/workflows/hexlet-check.yml` — не удаляйте и не переименовывайте ни его, ни репозиторий.
 
 </details>
+
+## Выпуск версии
+
+При каждом обновлении `main` запускается Release Please. Для ручного запуска откройте **Actions → Release Please → Run workflow** и выберите `main`. [Workflow Release Please](.github/workflows/release-please.yml)
+
+До первого запуска настройте один из способов доступа к GitHub API.
+
+- Для встроенного `GITHUB_TOKEN` включите **Allow GitHub Actions to create and approve pull requests** в **Settings → Actions → General → Workflow permissions**. [Настройки GitHub Actions](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository#preventing-github-actions-from-creating-or-approving-pull-requests)
+- Чтобы push в ветку release PR запускал проверки CI, добавьте секрет `RELEASE_PLEASE_TOKEN` в **Settings → Secrets and variables → Actions**. Используйте fine-grained personal access token с доступом к этому репозиторию и правом записи в **Contents**, **Issues** и **Pull requests**. [Учётные данные Release Please](https://github.com/googleapis/release-please-action/tree/45996ed1f6d02564a971a2fa1b5860e934307cf7#other-actions-on-release-please-prs)
+
+1. Добавьте в `main` изменение с сообщением по Conventional Commits, например `feat: add a meeting type catalog` или `fix: handle an empty catalog`. При squash merge используйте этот формат в сообщении итогового коммита.
+2. Release Please создаст или обновит release PR. Проверьте версию в `package.json` и `package-lock.json` и описание изменений в `CHANGELOG.md`.
+3. Объедините release PR с `main`. При следующем запуске Release Please создаст тег версии и GitHub Release.
 
 ## О Хекслете
 
