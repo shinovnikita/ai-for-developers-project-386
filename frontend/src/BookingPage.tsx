@@ -1,6 +1,7 @@
-import { Paper, Stack, Text, Title } from '@mantine/core';
+import { Button, Paper, Stack, Text, Title } from '@mantine/core';
 import { useEffect, useState } from 'react';
 import { listMeetingTypes, type MeetingType } from './api';
+import { AvailabilityPicker } from './AvailabilityPicker';
 
 type Catalog =
   | { status: 'loading' }
@@ -11,6 +12,7 @@ const durationFormat = new Intl.NumberFormat('ru', { style: 'unit', unit: 'minut
 
 export function BookingPage() {
   const [catalog, setCatalog] = useState<Catalog>({ status: 'loading' });
+  const [selectedTypeId, setSelectedTypeId] = useState<string>();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -46,12 +48,22 @@ export function BookingPage() {
                   <Title order={2}>{type.name}</Title>
                   <Text>{type.description}</Text>
                   <Text c="dimmed">{durationFormat.format(type.durationMinutes)}</Text>
+                  <Button
+                    w="fit-content"
+                    variant={type.id === selectedTypeId ? 'filled' : 'default'}
+                    aria-label={`Выбрать ${type.name}`}
+                    aria-pressed={type.id === selectedTypeId}
+                    onClick={() => setSelectedTypeId(type.id)}
+                  >
+                    Выбрать
+                  </Button>
                 </Stack>
               </Paper>
             ))}
           </Stack>
         )
       )}
+      {selectedTypeId && <AvailabilityPicker key={selectedTypeId} meetingTypeId={selectedTypeId} />}
     </>
   );
 }

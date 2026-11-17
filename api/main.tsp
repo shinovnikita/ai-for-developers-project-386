@@ -53,3 +53,29 @@ op createMeetingType(@body input: CreateMeetingTypeInput):
   CreatedResponse & { @body body: MeetingType }
   | BadRequestResponse & { @body body: ApiError<"VALIDATION_ERROR"> }
   | ConflictResponse & { @body body: MeetingTypeNameTakenError };
+
+model Slot {
+  startsAt: utcDateTime;
+  endsAt: utcDateTime;
+}
+
+model AvailabilityDay {
+  date: plainDate;
+  slots: Slot[];
+}
+
+model Availability {
+  timeZone: "Europe/Moscow";
+  days: AvailabilityDay[];
+}
+
+model MeetingTypeNotFound {
+  code: "MEETING_TYPE_NOT_FOUND";
+  message: string;
+}
+
+@route("/api/meeting-types/{meetingTypeId}/availability")
+@get
+op getMeetingTypeAvailability(@path meetingTypeId: string):
+  OkResponse & { @body body: Availability }
+  | NotFoundResponse & { @body body: MeetingTypeNotFound };
