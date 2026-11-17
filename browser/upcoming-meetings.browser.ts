@@ -10,6 +10,9 @@ test('после записи через главную владелец вид�
   const guestName = 'Анна';
   const ownerUrl = new URL('/owner', calendar.webOrigin).href;
 
+  await page.addInitScript(() => {
+    Object.defineProperty(Crypto.prototype, 'randomUUID', { value: undefined });
+  });
   await page.goto(ownerUrl);
   const upcoming = page.getByRole('region', { name: 'Предстоящие встречи' });
   await expect(upcoming.getByText('Предстоящих встреч пока нет')).toBeVisible();
@@ -29,6 +32,7 @@ test('после записи через главную владелец вид�
 
   const confirmation = page.getByRole('region', { name: 'Подтверждение записи' });
   await expect(confirmation.getByRole('heading', { name: 'Встреча подтверждена' })).toBeVisible();
+  await expect(confirmation.getByText(typeName, { exact: true })).toBeVisible();
   await expect(confirmation.getByText('17 ноября 2026 г.')).toBeVisible();
   await expect(confirmation.getByText('10:00–10:30')).toBeVisible();
   await expect(confirmation.getByText('Europe/Moscow')).toBeVisible();

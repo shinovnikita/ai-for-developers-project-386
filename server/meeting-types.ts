@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import type { FastifyInstance } from 'fastify';
 import type { CreateMeetingTypeInput, MeetingType, MeetingTypeNotFound } from '../api/generated/sdk/types.gen.ts';
+import { handleInvalidRequest, validationError } from './validation-error.ts';
 
 export const meetingTypeNotFound = {
   code: 'MEETING_TYPE_NOT_FOUND',
@@ -9,11 +10,6 @@ export const meetingTypeNotFound = {
 } satisfies MeetingTypeNotFound;
 
 type MeetingTypeRequest = Partial<Record<keyof CreateMeetingTypeInput, unknown>>;
-
-const validationError = {
-  code: 'VALIDATION_ERROR',
-  message: 'Проверьте поля запроса',
-};
 
 function validateMeetingType(body: MeetingTypeRequest | null | undefined) {
   const name = typeof body?.name === 'string' ? body.name.trim() : '';
@@ -83,13 +79,7 @@ export function registerMeetingTypeRoutes(
 ) {
   app.get('/api/meeting-types', async () => catalog.list());
   app.post<{ Body: MeetingTypeRequest | null | undefined }>('/api/meeting-types', {
-    errorHandler(error, _request, reply) {
-      if (error.statusCode === 400) {
-        return reply.code(400).send(validationError);
-      }
-
-      return reply.send(error);
-    },
+    errorHandler: handleInvalidRequest,
   }, async (request, reply) => {
     const { input, fieldErrors } = validateMeetingType(request.body);
     if (!input) {

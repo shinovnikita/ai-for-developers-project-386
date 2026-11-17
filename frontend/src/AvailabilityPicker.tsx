@@ -23,6 +23,20 @@ const dateFormat = new Intl.DateTimeFormat('ru', {
   day: 'numeric',
   month: 'short',
 });
+
+function createAttemptId() {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+
+  return [
+    hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16), hex.slice(16, 20), hex.slice(20),
+  ].join('-');
+}
+
 export function AvailabilityPicker({ meetingTypeId }: { meetingTypeId: string }) {
   const [state, setState] = useState<AvailabilityState>();
   const [refresh, setRefresh] = useState(0);
@@ -91,17 +105,17 @@ export function AvailabilityPicker({ meetingTypeId }: { meetingTypeId: string })
     event.preventDefault();
     if (submitRequest.current) return;
 
-    let attempt = retry;
-    if (!attempt) {
-      if (!selectedSlot || guestName === undefined) return;
-      attempt = { meetingTypeId, startsAt: selectedSlot.startsAt, guestName, attemptId: crypto.randomUUID() };
-    }
-
     const controller = new AbortController();
     submitRequest.current = controller;
-    setSubmission({ status: 'submitting' });
+    let attempt = retry;
 
     try {
+      if (!attempt) {
+        if (!selectedSlot || guestName === undefined) return;
+        attempt = { meetingTypeId, startsAt: selectedSlot.startsAt, guestName, attemptId: createAttemptId() };
+      }
+
+      setSubmission({ status: 'submitting' });
       const { data, error, response } = await createMeeting({
         body: attempt,
         signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]),
@@ -129,7 +143,8 @@ export function AvailabilityPicker({ meetingTypeId }: { meetingTypeId: string })
         nameError: error?.code === 'VALIDATION_ERROR' ? error.fieldErrors?.guestName : undefined,
       });
     } catch {
-      if (!controller.signal.aborted) setSubmission({ status: 'retry', attempt });
+      if (controller.signal.aborted) return;
+      setSubmission(attempt ? { status: 'retry', attempt } : { status: 'error', message: defaultError });
     } finally {
       submitRequest.current = null;
     }

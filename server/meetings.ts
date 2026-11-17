@@ -5,9 +5,9 @@ import type { CreateMeetingInput, Meeting, MeetingConfirmation, Slot, UpcomingMe
 import { calendarTimeZone } from '../shared/calendar-time.ts';
 import { getSlot, overlaps, utcTimestamp, type WeeklySchedule } from './availability.ts';
 import { meetingTypeNotFound, type createMeetingTypeCatalog } from './meeting-types.ts';
+import { handleInvalidRequest, validationError } from './validation-error.ts';
 
 type MeetingRequest = Partial<Record<keyof CreateMeetingInput, unknown>> | null | undefined;
-type Booking = Omit<CreateMeetingInput, 'startsAt'> & { startsAt: number };
 
 function meetingFromRow(row: Record<string, SQLOutputValue>): Meeting {
   return {
@@ -20,45 +20,43 @@ function meetingFromRow(row: Record<string, SQLOutputValue>): Meeting {
   };
 }
 
-const validationError = {
-  code: 'VALIDATION_ERROR',
-  message: 'Проверьте поля запроса',
-};
 const utcDateTime = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.(\d+))?Z$/;
 const uuid = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 
 function parseStart(value: unknown) {
-  if (typeof value !== 'string') return NaN;
+  if (typeof value !== 'string') return;
   const match = utcDateTime.exec(value);
-  if (!match) return NaN;
+  if (!match) return;
 
   const time = Date.parse(value);
-  if (!Number.isFinite(time) || new Date(time).toISOString().slice(0, 19) !== value.slice(0, 19)) {
-    return NaN;
-  }
-  // Date.parse truncates fractions beyond milliseconds. Keep such a start off the slot grid.
-  return /[1-9]/.test(match[1]?.slice(3) ?? '') ? time + 0.5 : time;
+  if (!Number.isFinite(time) || new Date(time).toISOString().slice(0, 19) !== value.slice(0, 19)) return;
+
+  // Date.parse truncates fractions beyond milliseconds.
+  return { time, hasSubMillisecondRemainder: /[1-9]/.test(match[1]?.slice(3) ?? '') };
 }
 
-function validateBooking(body: MeetingRequest) {
-  const meetingTypeId = body?.meetingTypeId;
-  const startsAt = parseStart(body?.startsAt);
-  const guestName = typeof body?.guestName === 'string' ? body.guestName.trim() : '';
-  const attemptId = body?.attemptId;
-  const validName = guestName !== '' && [...guestName].length <= 80;
-  const validType = typeof meetingTypeId === 'string' && meetingTypeId.trim() !== '';
-  const validAttempt = typeof attemptId === 'string' && uuid.test(attemptId);
+function hasBookingShape(body: MeetingRequest): body is CreateMeetingInput {
+  return typeof body?.meetingTypeId === 'string'
+    && typeof body.startsAt === 'string'
+    && typeof body.guestName === 'string'
+    && typeof body.attemptId === 'string';
+}
 
-  if (validType && Number.isFinite(startsAt) && validName && validAttempt) {
-    return { input: { meetingTypeId, startsAt, guestName, attemptId: attemptId.toLowerCase() } };
+function bookingFieldErrors(body: MeetingRequest, start = parseStart(body?.startsAt)) {
+  const fieldErrors: Partial<Record<keyof CreateMeetingInput, string>> = {};
+  const guestName = typeof body?.guestName === 'string' ? body.guestName.trim() : '';
+
+  if (typeof body?.meetingTypeId !== 'string' || body.meetingTypeId.trim() === '') {
+    fieldErrors.meetingTypeId = 'Выберите тип встречи';
+  }
+  if (!start) fieldErrors.startsAt = 'Укажите время начала в UTC';
+  if (guestName === '') fieldErrors.guestName = 'Укажите имя';
+  else if ([...guestName].length > 80) fieldErrors.guestName = 'Укажите имя до 80 символов';
+  if (typeof body?.attemptId !== 'string' || !uuid.test(body.attemptId)) {
+    fieldErrors.attemptId = 'Укажите UUID попытки записи';
   }
 
-  const fieldErrors: Partial<Record<keyof CreateMeetingInput, string>> = {};
-  if (!validType) fieldErrors.meetingTypeId = 'Выберите тип встречи';
-  if (!Number.isFinite(startsAt)) fieldErrors.startsAt = 'Укажите время начала в UTC';
-  if (!validName) fieldErrors.guestName = guestName ? 'Укажите имя до 80 символов' : 'Укажите имя';
-  if (!validAttempt) fieldErrors.attemptId = 'Укажите UUID попытки записи';
-  return { fieldErrors };
+  return fieldErrors;
 }
 
 export function createMeetingStore(
@@ -101,10 +99,16 @@ export function createMeetingStore(
     }));
   }
 
-  function save({ meetingTypeId, startsAt, guestName, attemptId }: Booking) {
+  function save(input: CreateMeetingInput) {
+    const { meetingTypeId } = input;
+    const guestName = input.guestName.trim();
+    const attemptId = input.attemptId.toLowerCase();
+    const start = parseStart(input.startsAt);
     const saved = selectAttempt.get(attemptId);
     if (saved) {
-      if (saved.meeting_type_id !== meetingTypeId || saved.starts_at !== startsAt || saved.guest_name !== guestName) {
+      if (saved.meeting_type_id !== meetingTypeId
+        || saved.guest_name !== guestName
+        || !start || start.hasSubMillisecondRemainder || saved.starts_at !== start.time) {
         return { status: 409, body: { code: 'ATTEMPT_PAYLOAD_MISMATCH', message: 'Данные попытки записи изменились' } } as const;
       }
 
@@ -112,12 +116,19 @@ export function createMeetingStore(
       return { status: 200, body: { timeZone: calendarTimeZone, meeting } satisfies MeetingConfirmation } as const;
     }
 
+    const fieldErrors = bookingFieldErrors(input, start);
+    if (!start || Object.keys(fieldErrors).length > 0) {
+      return { status: 400, body: { ...validationError, fieldErrors } } as const;
+    }
+
     const meetingType = catalog.find(meetingTypeId);
     if (!meetingType) return { status: 404, body: meetingTypeNotFound } as const;
 
     const currentTime = now();
     const activeSlots = listActiveSlots(currentTime);
-    const slot = getSlot(meetingType.durationMinutes, startsAt, currentTime, schedule, activeSlots);
+    const slot = start.hasSubMillisecondRemainder
+      ? undefined
+      : getSlot(meetingType.durationMinutes, start.time, currentTime, schedule, activeSlots);
     if (!slot) {
       return { status: 422, body: { code: 'SLOT_UNAVAILABLE', message: 'Это время больше недоступно' } } as const;
     }
@@ -132,14 +143,14 @@ export function createMeetingStore(
       guestName,
       ...slot,
     };
-    insert.run(meeting.id, meetingTypeId, meetingType.name, guestName, startsAt, Date.parse(slot.endsAt), attemptId);
+    insert.run(meeting.id, meetingTypeId, meetingType.name, guestName, start.time, Date.parse(slot.endsAt), attemptId);
 
     return { status: 201, body: { timeZone: calendarTimeZone, meeting } satisfies MeetingConfirmation } as const;
   }
 
   return {
     listActiveSlots,
-    book(input: Booking) {
+    book(input: CreateMeetingInput) {
       database.exec('BEGIN IMMEDIATE');
       try {
         const result = save(input);
@@ -161,15 +172,13 @@ export function createMeetingStore(
 
 export function registerMeetingRoutes(app: FastifyInstance, meetings: ReturnType<typeof createMeetingStore>) {
   app.post<{ Body: MeetingRequest }>('/api/meetings', {
-    errorHandler(error, _request, reply) {
-      if (error.statusCode === 400) return reply.code(400).send(validationError);
-      return reply.send(error);
-    },
+    errorHandler: handleInvalidRequest,
   }, async (request, reply) => {
-    const { input, fieldErrors } = validateBooking(request.body);
-    if (!input) return reply.code(400).send({ ...validationError, fieldErrors });
+    if (!hasBookingShape(request.body)) {
+      return reply.code(400).send({ ...validationError, fieldErrors: bookingFieldErrors(request.body) });
+    }
 
-    const { status, body } = meetings.book(input);
+    const { status, body } = meetings.book(request.body);
     return reply.code(status).send(body);
   });
 
