@@ -1,8 +1,9 @@
 import Fastify, { type FastifyServerOptions } from 'fastify';
 import { DatabaseSync } from 'node:sqlite';
-import type { MeetingType, MeetingTypeNotFound } from '../api/generated/sdk/types.gen.ts';
+import type { MeetingType } from '../api/generated/sdk/types.gen.ts';
 import { getAvailability, type WeeklySchedule } from './availability.ts';
-import { createMeetingTypeCatalog, registerMeetingTypeRoutes } from './meeting-types.ts';
+import { createMeetingTypeCatalog, meetingTypeNotFound, registerMeetingTypeRoutes } from './meeting-types.ts';
+import { createMeetingStore, registerMeetingRoutes } from './meetings.ts';
 
 export type CalendarOptions = {
   databasePath?: string;
@@ -16,24 +17,24 @@ export function buildApp(
   { databasePath = ':memory:', now = () => new Date(), schedule }: CalendarOptions = {},
 ) {
   const app = Fastify(options);
-  const database = new DatabaseSync(databasePath);
+  const database = new DatabaseSync(databasePath, { timeout: 3_000 });
   app.addHook('onClose', async () => database.close());
   const catalog = createMeetingTypeCatalog(database, seed);
+  const meetings = createMeetingStore(database, catalog, now, schedule);
 
   app.get('/health', async () => ({ status: 'ok' }));
   registerMeetingTypeRoutes(app, catalog);
+  registerMeetingRoutes(app, meetings);
   app.get<{ Params: { meetingTypeId: string } }>(
     '/api/meeting-types/:meetingTypeId/availability',
     async (request, reply) => {
       const meetingType = catalog.find(request.params.meetingTypeId);
       if (!meetingType) {
-        return reply.code(404).send({
-          code: 'MEETING_TYPE_NOT_FOUND',
-          message: 'Тип встречи не найден',
-        } satisfies MeetingTypeNotFound);
+        return reply.code(404).send(meetingTypeNotFound);
       }
 
-      return getAvailability(meetingType.durationMinutes, now(), schedule);
+      const currentTime = now();
+      return getAvailability(meetingType.durationMinutes, currentTime, schedule, meetings.listActiveSlots(currentTime));
     },
   );
 

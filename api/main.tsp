@@ -79,3 +79,43 @@ model MeetingTypeNotFound {
 op getMeetingTypeAvailability(@path meetingTypeId: string):
   OkResponse & { @body body: Availability }
   | NotFoundResponse & { @body body: MeetingTypeNotFound };
+
+model Meeting {
+  id: string;
+  meetingTypeId: MeetingType.id;
+  meetingTypeName: MeetingType.name;
+
+  @minLength(1)
+  @maxLength(80)
+  guestName: string;
+
+  ...Slot;
+}
+
+model CreateMeetingInput {
+  @minLength(1)
+  meetingTypeId: string;
+
+  @doc("UTC timestamp ending in Z.")
+  startsAt: Slot.startsAt;
+
+  @doc("After trimming leading and trailing whitespace, the guest name must contain 1–80 characters.")
+  guestName: string;
+
+  @format("uuid")
+  attemptId: string;
+}
+
+model MeetingConfirmation {
+  timeZone: "Europe/Moscow";
+  meeting: Meeting;
+}
+
+@route("/api/meetings")
+@post
+op createMeeting(@body input: CreateMeetingInput):
+  CreatedResponse & { @body body: MeetingConfirmation }
+  | BadRequestResponse & { @body body: ApiError<"VALIDATION_ERROR"> }
+  | NotFoundResponse & { @body body: MeetingTypeNotFound }
+  | ConflictResponse & { @body body: ApiError<"SLOT_TAKEN" | "ATTEMPT_PAYLOAD_MISMATCH"> }
+  | { @statusCode statusCode: 422; @body body: ApiError<"SLOT_UNAVAILABLE"> };

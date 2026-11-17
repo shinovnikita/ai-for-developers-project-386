@@ -1,7 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import type { FastifyInstance } from 'fastify';
-import type { CreateMeetingTypeInput, MeetingType } from '../api/generated/sdk/types.gen.ts';
+import type { CreateMeetingTypeInput, MeetingType, MeetingTypeNotFound } from '../api/generated/sdk/types.gen.ts';
+
+export const meetingTypeNotFound = {
+  code: 'MEETING_TYPE_NOT_FOUND',
+  message: 'Тип встречи не найден',
+} satisfies MeetingTypeNotFound;
 
 type MeetingTypeRequest = Partial<Record<keyof CreateMeetingTypeInput, unknown>>;
 

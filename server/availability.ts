@@ -47,7 +47,7 @@ function candidateStarts(
   return [...candidates].sort((left, right) => left - right);
 }
 
-function utcTimestamp(time: number) {
+export function utcTimestamp(time: number) {
   return new Date(time).toISOString().replace('.000Z', 'Z');
 }
 

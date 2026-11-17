@@ -101,6 +101,13 @@ mise exec -- npm run lint
 mise exec -- npm test
 ```
 
+Браузерные тесты запускают локальные Fastify и Vite. Перед первым запуском установите Chromium для Playwright.
+
+```bash
+mise exec -- npm exec -- playwright install chromium
+mise exec -- npm run test:browser
+```
+
 ---
 
 <details>
