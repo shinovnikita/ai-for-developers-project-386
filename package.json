@@ -16,6 +16,7 @@
     "typecheck": "tsc --noEmit && tsc -b frontend"
   },
   "dependencies": {
+    "@fastify/static": "10.1.11",
     "@mantine/core": "9.8.1",
     "@mantine/hooks": "9.8.1",
     "fastify": "5.12.8",

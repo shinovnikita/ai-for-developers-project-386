@@ -1,3 +1,5 @@
+import fastifyStatic from '@fastify/static';
+import { fileURLToPath } from 'node:url';
 import { buildApp } from './app.ts';
 import { readWeeklySchedule } from './working-hours.ts';
 
@@ -10,8 +12,18 @@ const app = buildApp({ logger: true }, demo ? demoCatalog : [], {
   schedule: readWeeklySchedule(process.env.CALENDAR_SCHEDULE),
 });
 
+if (process.env.NODE_ENV === 'production') {
+  app.register(fastifyStatic, {
+    root: fileURLToPath(new URL('../frontend/dist/', import.meta.url)),
+    index: false,
+  });
+  for (const path of ['/', '/booking', '/owner']) {
+    app.get(path, async (_request, reply) => reply.sendFile('index.html'));
+  }
+}
+
 try {
-  await app.listen({ host: '127.0.0.1', port: 3000 });
+  await app.listen({ host: process.env.HOST ?? '127.0.0.1', port: 3000 });
 } catch (error) {
   app.log.error(error);
   process.exitCode = 1;

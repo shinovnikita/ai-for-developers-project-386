@@ -108,6 +108,16 @@ mise exec -- npm exec -- playwright install chromium
 mise exec -- npm run test:browser
 ```
 
+### Проверка Docker-образа
+
+Из корня проекта выполните команду, которую запускает отдельная проверка CI. Для неё нужны запущенный Docker, `curl` и `jq`.
+
+```bash
+bash scripts/docker-smoke.sh
+```
+
+Команда собирает образ со сгенерированным SDK и фронтендом, запускает контейнер и проверяет по HTTP `/health`, `/booking` и `/owner`. После проверки контейнер удаляется.
+
 ---
 
 <details>
