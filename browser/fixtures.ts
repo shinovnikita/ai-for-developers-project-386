@@ -9,13 +9,15 @@ const fixedTime = '2026-11-17T05:00:00Z';
 type Calendar = {
   apiOrigin: string;
   webOrigin: string;
+  setNow: (instant: string) => void;
 };
 
 export const test = base.extend<{ calendar: Calendar }>({
   calendar: async ({}, use) => {
     const host = '127.0.0.1';
+    let now = new Date(fixedTime);
     const app = buildApp({}, [], {
-      now: () => new Date(fixedTime),
+      now: () => now,
       schedule: readWeeklySchedule(undefined),
     });
 
@@ -30,7 +32,7 @@ export const test = base.extend<{ calendar: Calendar }>({
         await vite.listen();
         const webOrigin = vite.resolvedUrls?.local[0];
         if (!webOrigin) throw new Error('Vite did not report its HTTP address');
-        await use({ apiOrigin, webOrigin });
+        await use({ apiOrigin, webOrigin, setNow: (instant) => { now = new Date(instant); } });
       } finally {
         await vite.close();
       }

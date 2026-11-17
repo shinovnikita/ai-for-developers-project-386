@@ -114,7 +114,8 @@ model MeetingConfirmation {
 @route("/api/meetings")
 @post
 op createMeeting(@body input: CreateMeetingInput):
-  CreatedResponse & { @body body: MeetingConfirmation }
+  OkResponse & { @body body: MeetingConfirmation }
+  | CreatedResponse & { @body body: MeetingConfirmation }
   | BadRequestResponse & { @body body: ApiError<"VALIDATION_ERROR"> }
   | NotFoundResponse & { @body body: MeetingTypeNotFound }
   | ConflictResponse & { @body body: ApiError<"SLOT_TAKEN" | "ATTEMPT_PAYLOAD_MISMATCH"> }

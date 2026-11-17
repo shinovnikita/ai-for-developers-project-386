@@ -1,7 +1,7 @@
 import { Button, Group, SimpleGrid, Stack, Text, TextInput, Title } from '@mantine/core';
 import { type SubmitEvent, useEffect, useRef, useState } from 'react';
 import { calendarDate, calendarMidnight, shiftCalendarDate } from '../../shared/calendar-time';
-import { createMeeting, getMeetingTypeAvailability, type Availability, type MeetingConfirmation } from './api';
+import { createMeeting, getMeetingTypeAvailability, type Availability, type CreateMeetingInput, type MeetingConfirmation } from './api';
 import { formatMeetingDate, formatTimeRange } from './meeting-time';
 
 type AvailabilityState = { date: string; refresh: number } & (
@@ -11,6 +11,7 @@ type AvailabilityState = { date: string; refresh: number } & (
 
 type Submission =
   | { status: 'idle' | 'submitting' }
+  | { status: 'retry'; attempt: CreateMeetingInput }
   | { status: 'error'; message: string; nameError?: string }
   | { status: 'confirmed'; confirmation: MeetingConfirmation };
 
@@ -38,6 +39,7 @@ export function AvailabilityPicker({ meetingTypeId }: { meetingTypeId: string })
   const selectedSlot = selectedDay?.slots.find((slot) => slot.startsAt === selectedStart);
   const confirmed = submission.status === 'confirmed';
   const submitting = submission.status === 'submitting';
+  const retry = submission.status === 'retry' ? submission.attempt : undefined;
   const nameError = submission.status === 'error' ? submission.nameError : undefined;
 
   useEffect(() => {
@@ -87,22 +89,32 @@ export function AvailabilityPicker({ meetingTypeId }: { meetingTypeId: string })
 
   async function submitMeeting(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedSlot || guestName === undefined || submitRequest.current) return;
+    if (submitRequest.current) return;
+
+    let attempt = retry;
+    if (!attempt) {
+      if (!selectedSlot || guestName === undefined) return;
+      attempt = { meetingTypeId, startsAt: selectedSlot.startsAt, guestName, attemptId: crypto.randomUUID() };
+    }
 
     const controller = new AbortController();
     submitRequest.current = controller;
     setSubmission({ status: 'submitting' });
 
     try {
-      const attemptId = crypto.randomUUID();
-      const { data, error } = await createMeeting({
-        body: { meetingTypeId, startsAt: selectedSlot.startsAt, guestName, attemptId },
-        signal: controller.signal,
+      const { data, error, response } = await createMeeting({
+        body: attempt,
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]),
       });
       if (controller.signal.aborted) return;
 
       if (data) {
         setSubmission({ status: 'confirmed', confirmation: data });
+        return;
+      }
+
+      if (!response || response.ok || response.status >= 500) {
+        setSubmission({ status: 'retry', attempt });
         return;
       }
 
@@ -117,7 +129,7 @@ export function AvailabilityPicker({ meetingTypeId }: { meetingTypeId: string })
         nameError: error?.code === 'VALIDATION_ERROR' ? error.fieldErrors?.guestName : undefined,
       });
     } catch {
-      if (!controller.signal.aborted) setSubmission({ status: 'error', message: defaultError });
+      if (!controller.signal.aborted) setSubmission({ status: 'retry', attempt });
     } finally {
       submitRequest.current = null;
     }
@@ -158,6 +170,7 @@ export function AvailabilityPicker({ meetingTypeId }: { meetingTypeId: string })
                   if (day.date !== selectedDate) {
                     setSelectedDate(day.date);
                     setSelectedStart(undefined);
+                    if (retry) setSubmission({ status: 'idle' });
                   }
                 }}
               >
@@ -178,6 +191,7 @@ export function AvailabilityPicker({ meetingTypeId }: { meetingTypeId: string })
                 aria-pressed={slot.startsAt === selectedStart}
                 disabled={submitting}
                 onClick={() => {
+                  if (retry && slot.startsAt === selectedStart) return;
                   setSelectedStart(slot.startsAt);
                   setGuestName((name) => name ?? '');
                   setSubmission({ status: 'idle' });
@@ -202,12 +216,13 @@ export function AvailabilityPicker({ meetingTypeId }: { meetingTypeId: string })
               error={nameError}
               onChange={(event) => {
                 setGuestName(event.currentTarget.value);
-                if (nameError) setSubmission({ status: 'idle' });
+                if (nameError || retry) setSubmission({ status: 'idle' });
               }}
             />
-            <Button type="submit" disabled={!selectedSlot} loading={submitting} w="fit-content">
-              Подтвердить запись
+            <Button type="submit" disabled={!selectedSlot && !retry} loading={submitting} w="fit-content">
+              {retry ? 'Повторить отправку' : 'Подтвердить запись'}
             </Button>
+            {retry && <Text role="alert" c="red">{defaultError}</Text>}
             {submission.status === 'error' && !nameError && <Text role="alert" c="red">{submission.message}</Text>}
           </Stack>
         </form>

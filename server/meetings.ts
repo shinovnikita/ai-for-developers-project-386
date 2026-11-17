@@ -85,10 +85,13 @@ export function createMeetingStore(
   `);
 
   const selectActive = database.prepare('SELECT starts_at, ends_at FROM meetings WHERE ends_at > ?');
+  const selectAttempt = database.prepare(`
+    SELECT id, meeting_type_id, meeting_type_name, guest_name, starts_at, ends_at
+    FROM meetings WHERE attempt_id = ?
+  `);
   const insert = database.prepare(`
     INSERT INTO meetings (id, meeting_type_id, meeting_type_name, guest_name, starts_at, ends_at, attempt_id)
     VALUES (?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT (attempt_id) DO NOTHING
   `);
 
   function listActiveSlots(currentTime: Date): Slot[] {
@@ -99,6 +102,16 @@ export function createMeetingStore(
   }
 
   function save({ meetingTypeId, startsAt, guestName, attemptId }: Booking) {
+    const saved = selectAttempt.get(attemptId);
+    if (saved) {
+      if (saved.meeting_type_id !== meetingTypeId || saved.starts_at !== startsAt || saved.guest_name !== guestName) {
+        return { status: 409, body: { code: 'ATTEMPT_PAYLOAD_MISMATCH', message: 'Данные попытки записи изменились' } } as const;
+      }
+
+      const meeting = meetingFromRow(saved);
+      return { status: 200, body: { timeZone: calendarTimeZone, meeting } satisfies MeetingConfirmation } as const;
+    }
+
     const meetingType = catalog.find(meetingTypeId);
     if (!meetingType) return { status: 404, body: meetingTypeNotFound } as const;
 
@@ -119,10 +132,7 @@ export function createMeetingStore(
       guestName,
       ...slot,
     };
-    const inserted = insert.run(meeting.id, meetingTypeId, meetingType.name, guestName, startsAt, Date.parse(slot.endsAt), attemptId);
-    if (inserted.changes === 0) {
-      return { status: 409, body: { code: 'ATTEMPT_PAYLOAD_MISMATCH', message: 'Данные попытки записи изменились' } } as const;
-    }
+    insert.run(meeting.id, meetingTypeId, meetingType.name, guestName, startsAt, Date.parse(slot.endsAt), attemptId);
 
     return { status: 201, body: { timeZone: calendarTimeZone, meeting } satisfies MeetingConfirmation } as const;
   }
