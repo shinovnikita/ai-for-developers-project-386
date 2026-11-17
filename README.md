@@ -35,6 +35,8 @@ git clone https://github.com/shinovnikita/ai-for-developers-project-386.git
 cd ai-for-developers-project-386
 mise install
 mise exec -- npm ci
+mise exec -- npm run generate:openapi
+mise exec -- npm run generate:sdk
 ```
 
 ## Использование
@@ -58,6 +60,12 @@ mise exec -- npm run dev
 ```
 
 Страница откроется по адресу [127.0.0.1:5173](http://127.0.0.1:5173/).
+
+Чтобы открыть каталог с демонстрационным типом встречи, запустите `mise exec -- npm run demo:catalog` вместо `npm start` и перейдите на [страницу записи](http://127.0.0.1:5173/booking). Ответ каталога можно проверить напрямую.
+
+```bash
+curl --noproxy 127.0.0.1 --fail-with-body -i http://127.0.0.1:3000/api/meeting-types
+```
 
 Для сборки и локального предпросмотра собранной страницы выполните следующие команды.
 

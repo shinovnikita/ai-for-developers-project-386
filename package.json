@@ -4,9 +4,12 @@
   "type": "module",
   "scripts": {
     "start": "node server/index.ts",
+    "demo:catalog": "node server/index.ts --demo-catalog",
     "dev": "vite frontend --host 127.0.0.1 --strictPort",
     "build": "tsc -b frontend && vite build frontend",
     "preview": "vite preview frontend --host 127.0.0.1 --strictPort",
+    "generate:openapi": "tsp compile api",
+    "generate:sdk": "openapi-ts -i api/generated/openapi.yaml -o api/generated/sdk",
     "lint": "oxlint --deny-warnings --react-plugin --vitest-plugin server frontend",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc -b frontend"
@@ -19,13 +22,22 @@
     "react-dom": "19.3.1"
   },
   "devDependencies": {
+    "@hey-api/openapi-ts": "0.99.0",
     "@types/node": "24.19.2",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
+    "@typespec/compiler": "1.18.0",
+    "@typespec/http": "1.18.0",
+    "@typespec/openapi3": "1.18.0",
     "@vitejs/plugin-react": "6.3.0",
     "oxlint": "1.93.0",
     "typescript": "6.0.3",
     "vite": "8.3.8",
     "vitest": "5.1.0"
+  },
+  "overrides": {
+    "@hey-api/json-schema-ref-parser": {
+      "js-yaml": "4.3.2"
+    }
   }
 }
