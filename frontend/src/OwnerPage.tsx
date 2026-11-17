@@ -1,6 +1,7 @@
 import { Button, Stack, Text, Textarea, TextInput, Title } from '@mantine/core';
 import { type SubmitEvent, useState } from 'react';
 import { createMeetingType, type CreateMeetingTypeInput } from './api';
+import { UpcomingMeetings } from './UpcomingMeetings';
 
 type FieldErrors = Partial<Record<keyof CreateMeetingTypeInput, string>>;
 
@@ -72,6 +73,7 @@ export function OwnerPage() {
           {submission.status === 'saved' && <Text role="status">Тип встречи создан</Text>}
         </Stack>
       </form>
+      <UpcomingMeetings />
     </>
   );
 }

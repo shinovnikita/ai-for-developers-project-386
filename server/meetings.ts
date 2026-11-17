@@ -1,13 +1,24 @@
 import { randomUUID } from 'node:crypto';
-import type { DatabaseSync } from 'node:sqlite';
+import type { DatabaseSync, SQLOutputValue } from 'node:sqlite';
 import type { FastifyInstance } from 'fastify';
-import type { CreateMeetingInput, Meeting, MeetingConfirmation, Slot } from '../api/generated/sdk/types.gen.ts';
+import type { CreateMeetingInput, Meeting, MeetingConfirmation, Slot, UpcomingMeetings } from '../api/generated/sdk/types.gen.ts';
 import { calendarTimeZone } from '../shared/calendar-time.ts';
 import { getSlot, overlaps, utcTimestamp, type WeeklySchedule } from './availability.ts';
 import { meetingTypeNotFound, type createMeetingTypeCatalog } from './meeting-types.ts';
 
 type MeetingRequest = Partial<Record<keyof CreateMeetingInput, unknown>> | null | undefined;
 type Booking = Omit<CreateMeetingInput, 'startsAt'> & { startsAt: number };
+
+function meetingFromRow(row: Record<string, SQLOutputValue>): Meeting {
+  return {
+    id: String(row.id),
+    meetingTypeId: String(row.meeting_type_id),
+    meetingTypeName: String(row.meeting_type_name),
+    guestName: String(row.guest_name),
+    startsAt: utcTimestamp(Number(row.starts_at)),
+    endsAt: utcTimestamp(Number(row.ends_at)),
+  };
+}
 
 const validationError = {
   code: 'VALIDATION_ERROR',
@@ -68,6 +79,11 @@ export function createMeetingStore(
     ) STRICT
   `);
 
+  const selectUpcoming = database.prepare(`
+    SELECT id, meeting_type_id, meeting_type_name, guest_name, starts_at, ends_at
+    FROM meetings WHERE starts_at > ? ORDER BY starts_at ASC
+  `);
+
   const selectActive = database.prepare('SELECT starts_at, ends_at FROM meetings WHERE ends_at > ?');
   const insert = database.prepare(`
     INSERT INTO meetings (id, meeting_type_id, meeting_type_name, guest_name, starts_at, ends_at, attempt_id)
@@ -124,6 +140,12 @@ export function createMeetingStore(
         throw error;
       }
     },
+    listUpcoming(): UpcomingMeetings {
+      return {
+        timeZone: calendarTimeZone,
+        meetings: selectUpcoming.all(now().getTime()).map(meetingFromRow),
+      };
+    },
   };
 }
 
@@ -139,5 +161,9 @@ export function registerMeetingRoutes(app: FastifyInstance, meetings: ReturnType
 
     const { status, body } = meetings.book(input);
     return reply.code(status).send(body);
+  });
+
+  app.get('/api/meetings/upcoming', async (_request, reply) => {
+    return reply.header('Cache-Control', 'no-store').send(meetings.listUpcoming());
   });
 }

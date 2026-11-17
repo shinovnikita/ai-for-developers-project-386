@@ -119,3 +119,12 @@ op createMeeting(@body input: CreateMeetingInput):
   | NotFoundResponse & { @body body: MeetingTypeNotFound }
   | ConflictResponse & { @body body: ApiError<"SLOT_TAKEN" | "ATTEMPT_PAYLOAD_MISMATCH"> }
   | { @statusCode statusCode: 422; @body body: ApiError<"SLOT_UNAVAILABLE"> };
+
+model UpcomingMeetings {
+  timeZone: "Europe/Moscow";
+  meetings: Meeting[];
+}
+
+@route("/api/meetings/upcoming")
+@get
+op listUpcomingMeetings(): OkResponse & { @body body: UpcomingMeetings };

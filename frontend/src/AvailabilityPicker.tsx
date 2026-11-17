@@ -1,7 +1,8 @@
 import { Button, Group, SimpleGrid, Stack, Text, TextInput, Title } from '@mantine/core';
 import { type SubmitEvent, useEffect, useRef, useState } from 'react';
-import { calendarDate, calendarMidnight, calendarTimeZone, shiftCalendarDate } from '../../shared/calendar-time';
+import { calendarDate, calendarMidnight, shiftCalendarDate } from '../../shared/calendar-time';
 import { createMeeting, getMeetingTypeAvailability, type Availability, type MeetingConfirmation } from './api';
+import { formatMeetingDate, formatTimeRange } from './meeting-time';
 
 type AvailabilityState = { date: string; refresh: number } & (
   | { status: 'error' }
@@ -21,20 +22,6 @@ const dateFormat = new Intl.DateTimeFormat('ru', {
   day: 'numeric',
   month: 'short',
 });
-const timeFormat = new Intl.DateTimeFormat('ru', {
-  timeZone: calendarTimeZone,
-  hour: '2-digit',
-  minute: '2-digit',
-});
-const confirmationDateFormat = new Intl.DateTimeFormat('ru', {
-  timeZone: calendarTimeZone,
-  dateStyle: 'long',
-});
-
-function formatTimeRange(startsAt: string, endsAt: string) {
-  return `${timeFormat.format(new Date(startsAt))}–${timeFormat.format(new Date(endsAt))}`;
-}
-
 export function AvailabilityPicker({ meetingTypeId }: { meetingTypeId: string }) {
   const [state, setState] = useState<AvailabilityState>();
   const [refresh, setRefresh] = useState(0);
@@ -142,7 +129,7 @@ export function AvailabilityPicker({ meetingTypeId }: { meetingTypeId: string })
       <Stack component="section" aria-label="Подтверждение записи" w="100%" gap="xs">
         <Title order={2}>Встреча подтверждена</Title>
         <Text>{meeting.meetingTypeName}</Text>
-        <Text>{confirmationDateFormat.format(new Date(meeting.startsAt))}</Text>
+        <Text>{formatMeetingDate(meeting.startsAt)}</Text>
         <Text>{formatTimeRange(meeting.startsAt, meeting.endsAt)}</Text>
         <Text c="dimmed">{timeZone}</Text>
       </Stack>

@@ -2,9 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
 import { expect, test } from 'vitest';
-import type { Availability, MeetingType } from '../api/generated/sdk/types.gen.ts';
+import type { Availability, MeetingType, UpcomingMeetings } from '../api/generated/sdk/types.gen.ts';
 import { buildApp, type CalendarOptions } from './app.ts';
 
 const defaultOptions: CalendarOptions = {
@@ -25,14 +24,6 @@ async function startCalendar(options: CalendarOptions = defaultOptions) {
       async close() {
         await app.close();
         await rm(directory, { recursive: true, force: true });
-      },
-      countMeetings() {
-        const database = new DatabaseSync(databasePath, { readOnly: true });
-        try {
-          return database.prepare('SELECT count(*) AS count FROM meetings').get()?.count;
-        } finally {
-          database.close();
-        }
       },
     };
   } catch (error) {
@@ -66,6 +57,12 @@ function book(calendar: Calendar, meetingTypeId: string, startsAt: string, guest
   return post(calendar, '/api/meetings', { meetingTypeId, startsAt, guestName, attemptId: randomUUID() });
 }
 
+async function upcoming(calendar: Calendar): Promise<UpcomingMeetings> {
+  const response = await calendar.request('/api/meetings/upcoming');
+  expect(response.status).toBe(200);
+  return response.json();
+}
+
 const singleBooking = {
   statuses: [201, 409],
   storedCount: 1,
@@ -76,10 +73,51 @@ async function bookingOutcome(calendar: Calendar, requests: Promise<Response>[])
   const responses = await Promise.all(requests);
   return {
     statuses: responses.map(({ status }) => status).sort(),
-    storedCount: calendar.countMeetings(),
+    storedCount: (await upcoming(calendar)).meetings.length,
     conflict: await responses.find(({ status }) => status === 409)?.json(),
   };
 }
+
+test('список предстоящих встреч сортируется по времени и исключает встречу с момента начала', async ({ onTestFinished }) => {
+  let now = new Date('2026-11-18T06:59:59Z');
+  const calendar = await startCalendar({ ...defaultOptions, now: () => now });
+  onTestFinished(calendar.close);
+  const consultation = await createType(calendar, 'Консультация');
+  const introduction = await createType(calendar, 'Знакомство', 17);
+  const later = await book(calendar, consultation.id, '2026-11-18T08:00:00Z', 'Лена');
+  expect(later.status).toBe(201);
+  const earlier = await book(calendar, introduction.id, '2026-11-18T07:00:00Z', 'Ян');
+  expect(earlier.status).toBe(201);
+
+  expect(await upcoming(calendar)).toEqual({
+    timeZone: 'Europe/Moscow',
+    meetings: [
+      {
+        id: expect.any(String),
+        meetingTypeId: introduction.id,
+        meetingTypeName: 'Знакомство',
+        guestName: 'Ян',
+        startsAt: '2026-11-18T07:00:00Z',
+        endsAt: '2026-11-18T07:17:00Z',
+      },
+      {
+        id: expect.any(String),
+        meetingTypeId: consultation.id,
+        meetingTypeName: 'Консультация',
+        guestName: 'Лена',
+        startsAt: '2026-11-18T08:00:00Z',
+        endsAt: '2026-11-18T08:30:00Z',
+      },
+    ],
+  });
+
+  now = new Date('2026-11-18T07:00:00Z');
+  const { meeting } = await later.json();
+  expect(await upcoming(calendar)).toEqual({ timeZone: 'Europe/Moscow', meetings: [meeting] });
+
+  now = new Date('2026-11-18T08:01:00Z');
+  expect(await upcoming(calendar)).toEqual({ timeZone: 'Europe/Moscow', meetings: [] });
+});
 
 test('две параллельные записи на одинаковый слот сохраняют только одну встречу', async ({ onTestFinished }) => {
   const calendar = await startCalendar();
@@ -157,7 +195,7 @@ test('запись отклоняет пустое и слишком длинн�
     code: 'VALIDATION_ERROR',
     fieldErrors: { guestName: 'Укажите имя до 80 символов' },
   });
-  expect(calendar.countMeetings()).toBe(0);
+  expect((await upcoming(calendar)).meetings).toHaveLength(0);
 });
 
 test('запись возвращает согласованную ошибку при неверном формате запроса', async ({ onTestFinished }) => {
@@ -184,7 +222,7 @@ test('запись возвращает согласованную ошибку 
   });
   expect(invalidJson.status).toBe(400);
   await expect(invalidJson.json()).resolves.toEqual({ code: 'VALIDATION_ERROR', message: 'Проверьте поля запроса' });
-  expect(calendar.countMeetings()).toBe(0);
+  expect((await upcoming(calendar)).meetings).toHaveLength(0);
 });
 
 test('запись возвращает ошибку для неизвестного типа встречи', async ({ onTestFinished }) => {
@@ -224,5 +262,5 @@ test('запись повторно проверяет время и огран�
       message: 'Это время больше недоступно',
     });
   }
-  expect(calendar.countMeetings()).toBe(0);
+  expect((await upcoming(calendar)).meetings).toHaveLength(0);
 });
