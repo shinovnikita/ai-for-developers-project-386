@@ -35,3 +35,13 @@ test('главная ведёт в каталог типов встреч на �
   expect(bookingPage).toMatch(/<h1\b[^>]*>Страница записи<\/h1>/);
   expect(bookingPage).toContain('Загружаем типы встреч');
 });
+
+test('страница владельца открывается по прямой ссылке и показывает форму создания типа встречи', () => {
+  const ownerPage = renderPage('/owner');
+
+  expect(ownerPage).toMatch(/<h1\b[^>]*>Календарь владельца<\/h1>/);
+  expect(ownerPage).toContain('Название');
+  expect(ownerPage).toContain('Описание');
+  expect(ownerPage).toContain('Длительность в минутах');
+  expect(ownerPage).toContain('Создать тип встречи');
+});
