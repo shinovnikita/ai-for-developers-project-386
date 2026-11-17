@@ -100,6 +100,19 @@ mise exec -- npm test
 
 </details>
 
+## Выпуск версии
+
+При каждом обновлении `main` запускается Release Please. Для ручного запуска откройте **Actions → Release Please → Run workflow** и выберите `main`. [Workflow Release Please](.github/workflows/release-please.yml)
+
+До первого запуска настройте один из способов доступа к GitHub API.
+
+- Для встроенного `GITHUB_TOKEN` включите **Allow GitHub Actions to create and approve pull requests** в **Settings → Actions → General → Workflow permissions**. [Настройки GitHub Actions](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository#preventing-github-actions-from-creating-or-approving-pull-requests)
+- Чтобы push в ветку release PR запускал проверки CI, добавьте секрет `RELEASE_PLEASE_TOKEN` в **Settings → Secrets and variables → Actions**. Используйте fine-grained personal access token с доступом к этому репозиторию и правом записи в **Contents**, **Issues** и **Pull requests**. [Учётные данные Release Please](https://github.com/googleapis/release-please-action/tree/45996ed1f6d02564a971a2fa1b5860e934307cf7#other-actions-on-release-please-prs)
+
+1. Добавьте в `main` изменение с сообщением по Conventional Commits, например `feat: add a meeting type catalog` или `fix: handle an empty catalog`. При squash merge используйте этот формат в сообщении итогового коммита.
+2. Release Please создаст или обновит release PR. Проверьте версию в `package.json` и `package-lock.json` и описание изменений в `CHANGELOG.md`.
+3. Объедините release PR с `main`. При следующем запуске Release Please создаст тег версии и GitHub Release.
+
 ## О Хекслете
 
 [Хекслет](https://ru.hexlet.io/) — школа программирования: авторские программы обучения с практикой, поддержкой наставников и реальными проектами, которые остаются в резюме. Этот репозиторий — один из таких проектов.
