@@ -6,7 +6,7 @@
 
 1. Скопируйте обе секции Render и выполните `codex mcp login render`. Войдите в Render в открывшемся браузере и подтвердите доступ.
 2. В Codex запросите список рабочих пространств Render и выберите пространство для календаря. Перед созданием проверьте, есть ли там сервис этого репозитория.
-3. Для нового Web Service выберите план `free`, репозиторий `shinovnikita/ai-for-developers-project-386`, ветку `main`, среду `docker`, путь `./Dockerfile` и контекст `.`. Хостинг задаёт `PORT`. В настройках сервиса укажите `/health` в поле **Health Check Path** и проверьте, что на публичном адресе этот путь возвращает HTTP 200.
+3. Через MCP создайте Blueprint из ветки `main` репозитория `shinovnikita/ai-for-developers-project-386`. Корневой [render.yaml](../render.yaml) описывает один Docker Web Service на плане `free` с проверкой `/health`. Проверьте план синхронизации и примените его. Хостинг задаёт `PORT`. После деплоя проверьте, что `/health` на публичном адресе возвращает HTTP 200.
 
 Если Render предлагает только платный ресурс, проверьте бесплатный вариант Railway. [Официальный Render MCP](https://render.com/docs/mcp-server) · [Бесплатные сервисы](https://render.com/docs/free) · [Health Check Path](https://render.com/docs/health-checks)
 
