@@ -1,5 +1,6 @@
 # Календарь звонков
 
+[**Открыть календарь звонков**](https://call-calendar-386-production-aa4bcc9c.up.railway.app)
 
 [![hexlet-check](https://github.com/shinovnikita/ai-for-developers-project-386/actions/workflows/hexlet-check.yml/badge.svg)](https://github.com/shinovnikita/ai-for-developers-project-386/actions)
 
@@ -80,11 +81,13 @@ mise exec -- npm run preview
 
 Сборка сохраняется в `frontend/dist`. Предпросмотр доступен по адресу [127.0.0.1:4173](http://127.0.0.1:4173/).
 
-### Деплой
+### Деплой на Railway
 
-Для деплоя из `main` используйте корневой `Dockerfile` и контекст сборки `.`. Образ слушает на `0.0.0.0`, порт задаёт хостинг. Для проверки доступности используйте `GET /health`. [Настройка Codex MCP и вход в хостинг](docs/deployment.md)
+Railway собирает ветку `main` из корневого `Dockerfile` с контекстом `.`. Fastify слушает на `0.0.0.0` и использует порт из переменной `PORT`, которую задаёт Railway. Хостинг проверяет готовность приложения запросом `GET /health`. [Настройка Codex MCP и вход в хостинг](docs/deployment.md)
 
-В контейнере типы встреч и записи гостей хранятся в SQLite по пути `/app/data/calendar.sqlite`. На Render Free файловая система временная. При перезапуске сервиса, новом деплое или остановке после 15 минут без входящего трафика Render удаляет локальные изменения. При следующем запуске календарь создаст пустую базу. [Файловая система Render Free](https://render.com/docs/free#local-files-lost-on-redeploy)
+Типы встреч и записи гостей хранятся в `/app/data/calendar.sqlite` на временном диске контейнера, без постоянного тома. При перезапуске процесса в том же контейнере файл сохраняется. Новый деплой заменяет контейнер, и календарь начинает работу с пустой базой. [Перезапуск и хранение данных на Railway](https://docs.railway.com/deployments/reference#restart)
+
+У сервиса включён режим Serverless. Через 5–10 минут без исходящего трафика сервис засыпает, а первый запрос его будит. В редких случаях для пробуждения Railway пересобирает сервис, поэтому без тома сохранность записей после сна не гарантируется. [Режим Serverless](https://docs.railway.com/deployments/serverless)
 
 ### Рабочее расписание
 
