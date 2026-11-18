@@ -19,8 +19,9 @@ trap 'cleanup "$?"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-container=$(docker run --detach --publish 127.0.0.1::3000 "$image")
-origin="http://$(docker port "$container" 3000/tcp)"
+port=8080
+container=$(docker run --detach --env "PORT=$port" --publish "127.0.0.1::$port" "$image")
+origin="http://$(docker port "$container" "$port/tcp")"
 
 get_status() {
   curl --noproxy '*' --silent --show-error --max-time 2 \
@@ -53,4 +54,4 @@ for route in /booking /owner; do
   fi
 done
 
-echo 'Docker smoke test passed for /health, /booking and /owner'
+echo "Docker smoke test passed for /health, /booking and /owner on container port $port"
